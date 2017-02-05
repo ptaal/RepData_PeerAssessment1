@@ -5,21 +5,114 @@ output:
     keep_md: true
 ---
 
-
-## Loading and preprocessing the data
-
-
+## Loading and preprocessing the data.
+```{r loading,echo=TRUE}
+unzip("activity.zip", exdir = ".")
+activity <- read.csv("activity.csv", header = TRUE)
+```
 
 ## What is mean total number of steps taken per day?
+##### 1. Calculating the total number of steps taken per day.
+```{r totalmean1,echo=TRUE}
+# please install/load dplyr package
+library(dplyr, warn.conflicts = FALSE)
+activity$date <- as.Date(as.character(activity$date), "%Y-%m-%d")
+# calculating the total number of steps taken per day
+stepsSum <- as.data.frame(select(activity, steps, date) %>% group_by(date) %>% summarize(steps = sum(steps, na.rm = TRUE)))
+```
 
+##### 2. Making a histogram of the total number of steps taken each day.
 
+```{r totalmean2,echo=TRUE}
+library(ggplot2)
+g <- ggplot(stepsSum)
+g + aes(x = date, y = steps) + geom_histogram(stat = "identity", fill = "pink", col = "blue") + labs(title = "Total Numbers of Daily Steps", x = "Date (2012-10-01 - 2012-11-30)", y = "Steps")
+```
+
+##### 3. Calculating and reporting the mean and median of the total number of steps taken per day.
+
+```{r totalmean3,echo=TRUE}
+dailyMeanMedian <- as.data.frame(select(activity, date, steps) %>% group_by(date) %>% summarize(Mean = round(mean(steps, na.rm = TRUE),2), Median = median(steps, na.rm = TRUE)))
+dailyMeanMedian
+```
 
 ## What is the average daily activity pattern?
+##### 1. Make a time series plot (i.e. 𝚝𝚢𝚙𝚎 = "𝚕") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
+```{r averagedaily1,echo=TRUE}
+intervalDailyAverage <- as.data.frame(select(activity, steps, date, interval) %>% group_by(interval) %>% summarize(IntervalAverage = round(mean(steps,na.rm = TRUE),2)))
+# building the plot
+plot(intervalDailyAverage$interval, intervalDailyAverage$IntervalAverage, xlab ="5-minute Interval", ylab = "Average Number of Steps Taken, Averaged Across All Day", main = "Average Daily Activity Pattern", type = "l")
+```
 
+##### 2.Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
 
+```{r averagedaily2,echo=TRUE}
+max(intervalDailyAverage$IntervalAverage)
+```
 
 ## Imputing missing values
+##### 1.Calculate and report the total numbers of missing values in the dataset(i.e. the total number of rows with NAs).
+``` {r missingvalues1,echo=TRUE}
+natable <- table(is.na(activity))
+totalMissingValues <- natable[2]
+totalMissingValues
+```
 
+##### 2.Devise a strategy for filling in all of the missing values in the dataset.
 
+``` {r missingvalues2,echo=TRUE}
+# my strategy is using the mean of each day, as a replacement for the group-matching NA values
+splitStepsDate <- split(activity$steps, activity$date)
+meanStepsDate <- lapply(splitStepsDate, mean, na.rm = TRUE)
+```
+
+##### 3.Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+``` {r missingvalues3,echo=TRUE}
+newActivity <- activity
+newMeanStepsDate <- rep(meanStepsDate, lapply(splitStepsDate, function(x) sum(is.na(x))))
+newActivity[is.na(newActivity)] <- newMeanStepsDate
+newActivity[is.na(newActivity)] <- 0
+```
+
+##### 4.Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+```{r missingbvalues4,echo=TRUE}
+newActivty <- as.data.frame(newActivity)
+newActivity$date <- as.Date(as.character(newActivity$date), "%Y-%m-%d")
+newActivity$steps<- as.integer(newActivity$steps)
+# calculating the total number of steps taken each day
+newStepsSum <- as.data.frame(select(newActivity, steps, date) %>% group_by(date) %>% summarize(steps = sum(steps)))
+# making a histogram of the total number of steps taken each day
+newG <- ggplot(newStepsSum)
+newG + aes(x = date, y = steps) + geom_histogram(stat = "identity", fill = "pink", col = "blue") + labs(title = "Total Numbers of Daily Steps", x = "Date (2012-10-01 - 2012-11-30)", y = "Steps")
+# calculating and reporting the mean and meadian total number of steps taken per day
+newDailyMeanMedian <- as.data.frame(select(newActivity, date, steps) %>% group_by(date) %>% summarize(Mean = round(mean(steps),2), Median = median(steps)))
+newDailyMeanMedian
+# all the NA values were clustered in entire steps rows for 8 different days. The estimate are only differs for one having NAs and the other one, instead having 0s. Just NA values have changed to 0s for this example 
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+##### 1.Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+
+```{r weekdaysweekendspattern1,echo=TRUE}
+newActivity <- mutate(newActivity, Weekdays = factor(weekdays(date)))
+levels(newActivity$Weekdays)[levels(newActivity$Weekdays) == "Monday"] <- "weekday"
+levels(newActivity$Weekdays)[levels(newActivity$Weekdays) == "Tuesday"] <- "weekday"
+levels(newActivity$Weekdays)[levels(newActivity$Weekdays) == "Wednesday"] <- "weekday"
+levels(newActivity$Weekdays)[levels(newActivity$Weekdays) == "Thursday"] <- "weekday"
+levels(newActivity$Weekdays)[levels(newActivity$Weekdays) == "Friday"] <- "weekday"
+levels(newActivity$Weekdays)[levels(newActivity$Weekdays) == "Saturday"] <- "weekend"
+levels(newActivity$Weekdays)[levels(newActivity$Weekdays) == "Sunday"] <- "weekend"
+```
+
+##### 2.Make a panel plot containing a time series plot (i.e. 𝚝𝚢𝚙𝚎 = "𝚕") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+
+```{r weekdaysweekendspattern2,echo=TRUE}
+weekendDailyAverage <- as.data.frame(select(newActivity, steps, date, interval, Weekdays) %>% filter(Weekdays == "weekend") %>% group_by(interval) %>% summarize(IntervalAverage = round(mean(steps),2)))
+weekdayDailyAverage <- as.data.frame(select(newActivity, steps, date, interval, Weekdays) %>% filter(Weekdays == "weekday") %>% group_by(interval) %>% summarize(IntervalAverage = round(mean(steps),2)))
+# building the plot
+par(mfrow=c(2,1))
+plot(weekendDailyAverage$interval, weekendDailyAverage$IntervalAverage, xlab ="Interval", ylab = "Number of Steps", main = "weekend", type = "l", col = "green")
+plot(weekdayDailyAverage$interval, weekdayDailyAverage$IntervalAverage, xlab ="Interval", ylab = "Number of Steps", main = "weekday", type = "l", col = "green")
+```
